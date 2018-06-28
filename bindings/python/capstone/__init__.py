@@ -1,5 +1,5 @@
 # Capstone Python bindings, by Nguyen Anh Quynnh <aquynh@gmail.com>
-import sys
+import os, sys
 from platform import system
 _python2 = sys.version_info[0] < 3
 if _python2:
@@ -216,33 +216,34 @@ _found = False
 def _load_lib(path):
     lib_file = join(path, _lib)
     #print("Trying to load %s" %lib_file)
-    try:
+    if os.path.exists(lib_file):
         return ctypes.cdll.LoadLibrary(lib_file)
-    except OSError:
+    else:
         # if we're on linux, try again with .so.3 extension
         if lib_file.endswith('.so'):
-            try:
+            if os.path.exists(lib_file + '.3'):
                 return ctypes.cdll.LoadLibrary(lib_file + '.3')
-            except OSError:
-                return None
-        return None
+    return None
 
 _cs = None
 
 # Loading attempts, in order
+# - user-provided environment variable
 # - pkg_resources can get us the path to the local libraries
 # - we can get the path to the local libraries by parsing our filename
 # - global load
 # - python's lib directory
 # - last-gasp attempt at some hardcoded paths on darwin and linux
 
-_path_list = [pkg_resources.resource_filename(__name__, 'lib'),
+_path_list = [os.getenv('LIBCAPSTONE_PATH', None),
+              pkg_resources.resource_filename(__name__, 'lib'),
               join(split(__file__)[0], 'lib'),
               '',
               distutils.sysconfig.get_python_lib(),
               "/usr/local/lib/" if sys.platform == 'darwin' else '/usr/lib64']
 
 for _path in _path_list:
+    if _path is None: continue
     _cs = _load_lib(_path)
     if _cs is not None: break
 else:
@@ -551,7 +552,7 @@ class CsInsn(object):
             (self.prefix, self.opcode, self.rex, self.addr_size, \
                 self.modrm, self.sib, self.disp, \
                 self.sib_index, self.sib_scale, self.sib_base, self.sse_cc, \
-                self.avx_cc, self.avx_sae, self.avx_rm, self.operands) = x86.get_arch_info(self._detail.arch.x86)
+                self.avx_cc, self.avx_sae, self.avx_rm, self.operands, self.encoding) = x86.get_arch_info(self._detail.arch.x86)
         elif arch == CS_ARCH_MIPS:
                 self.operands = mips.get_arch_info(self._detail.arch.mips)
         elif arch == CS_ARCH_PPC:
